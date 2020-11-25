@@ -37,6 +37,10 @@ public final class Anvil {
 
     private static Handler anvilUIHandler = null;
 
+    private static boolean slowRenderingDebug = false;
+    private static final long DEFAULT_DEBUG_RENDER_THRESHOULD = 20;
+    private static long renderThreshold = DEFAULT_DEBUG_RENDER_THRESHOULD;
+
     /** Renderable can be mounted and rendered using Anvil library. */
     public interface Renderable {
         /** This method is a place to define the structure of your layout, its view
@@ -117,6 +121,15 @@ public final class Anvil {
             return null;
         }
         return attrs.get(key);
+    }
+
+    public static void debugRender() {
+        debugRender(DEFAULT_DEBUG_RENDER_THRESHOULD);
+    }
+
+    public static void debugRender(long threshould) {
+        renderThreshold = threshould;
+        slowRenderingDebug = true;
     }
 
     /** Starts the new rendering cycle updating all mounted
@@ -214,6 +227,23 @@ public final class Anvil {
         render(m);
     }
 
+    static void benchmark(Renderable r) {
+        long start = System.currentTimeMillis();
+        r.view();
+        long end = System.currentTimeMillis();
+        long elapsed = end - start;
+        if (r instanceof View) {
+            View v = (View) r;
+            if (elapsed > renderThreshold) v.setBackgroundColor(0xAAFF0000);
+            else {
+                Object color = get(v, "backgroundColor");
+                if (color != null) v.setBackgroundColor((Integer) color);
+                else v.setBackgroundColor(0x5500FF00);
+            }
+        }
+        System.out.println("BENCHMARCK ANVIL " + r.getClass().getSimpleName() + " rendered in " + (end-start) + " ms");
+    }
+
     static void render(Mount m) {
         if (m.lock) {
             return;
@@ -223,7 +253,8 @@ public final class Anvil {
         currentMount = m;
         m.iterator.start();
         if (m.renderable != null) {
-            m.renderable.view();
+            if (slowRenderingDebug) benchmark(m.renderable);
+            else m.renderable.view();
         }
         m.iterator.end();
         currentMount = prev;
